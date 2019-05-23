@@ -37,11 +37,10 @@ class _PixmapConverter(object):
 		except KeyError:
 			pass
 
-		condition, in_progress = self._processing.get_condition(image_request)
+		event, in_progress = self._processing.get_condition(image_request)
 
 		if in_progress:
-			with condition:
-				condition.wait()
+			event.wait()
 
 			return self._pixmaps[image_request]
 
@@ -58,8 +57,7 @@ class _PixmapConverter(object):
 
 		self._pixmaps[image_request] = pixmap
 
-		with condition:
-			condition.notify_all()
+		event.set_value(None)
 
 		return pixmap
 
@@ -92,6 +90,8 @@ class PixmapLoader(object):
 
 		self._pixmap_converter = _PixmapConverter()
 
+		self._default_image = self._image_loader.get_default_image().get()
+
 	def get_pixmap(
 		self,
 		pictured: picturable = None,
@@ -117,7 +117,8 @@ class PixmapLoader(object):
 				)
 		)
 
-	def get_default_pixmap(self) -> Promise:
-		return self._image_loader.get_default_image().then(
-			lambda image: self._pixmap_converter.get_pixmap(None, image)
-		)
+	def get_default_pixmap(self) -> QPixmap:
+		return self._pixmap_converter.get_pixmap(None, self._default_image)
+		# return self._image_loader.get_default_image().then(
+		# 	lambda image: self._pixmap_converter.get_pixmap(None, image)
+		# )
