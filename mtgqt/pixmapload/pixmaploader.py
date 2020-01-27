@@ -1,49 +1,17 @@
 import typing as t
-import os
 from concurrent.futures import Executor, ThreadPoolExecutor
 
 from PIL import ImageQt, Image
 from promise import Promise
+from cachetools import cached, LRUCache
+
 from PyQt5.QtGui import QPixmap
 
-from mtgimg.load import Loader as ImageLoader, TaskAwaiter
-from mtgimg.interface import ImageRequest, pictureable
+from mtgorp.models.persistent.printing import Printing
 
+from mtgimg.load import Loader as ImageLoader
+from mtgimg.interface import ImageRequest, pictureable, SizeSlug, Imageable
 
-class _PixmapConverter(object):
-
-    def __init__(self):
-        self._pixmaps = dict()  # type: t.Dict[ImageRequest, QPixmap]
-        self._processing = TaskAwaiter()
-
-    def get_pixmap(self, image_request: t.Optional[ImageRequest], image: Image.Image):
-        try:
-            return self._pixmaps[image_request]
-        except KeyError:
-            pass
-
-        event, in_progress = self._processing.get_condition(image_request)
-
-        if in_progress:
-            event.wait()
-
-            return self._pixmaps[image_request]
-
-        if image_request and os.path.exists(image_request.path):
-            pixmap = QPixmap(image_request.path)
-
-        else:
-            self._pixmaps[image_request] = pixmap = QPixmap.fromImage(
-                ImageQt.ImageQt(
-                    image
-                )
-            )
-
-        self._pixmaps[image_request] = pixmap
-
-        event.set_value(None)
-
-        return pixmap
 
 
 class PixmapLoader(object):
@@ -72,38 +40,58 @@ class PixmapLoader(object):
             )
         )
 
-        self._pixmap_converter = _PixmapConverter()
+        self._default_images = {
+            size_slug: QPixmap.fromImage(
+                ImageQt.ImageQt(
+                    self._image_loader.get_default_image(size_slug)
+                )
+            )
+            for size_slug in
+            SizeSlug
+        }
 
-        self._default_image = self._image_loader.get_default_image()
+    @cached(cache = LRUCache(maxsize = 64))
+    def _get_pixmap(self, image_request: ImageRequest):
+        return QPixmap.fromImage(
+            ImageQt.ImageQt(
+                self._image_loader.get_image(image_request = image_request).get()
+            )
+        )
 
     def get_pixmap(
         self,
         pictured: pictureable = None,
+        *,
+        pictured_type: t.Union[t.Type[Printing], t.Type[Imageable]] = Printing,
+        picture_name: t.Optional[str] = None,
         back: bool = False,
         crop: bool = False,
-        image_request: ImageRequest = None
-    ) -> Promise:
-
+        size_slug: SizeSlug = SizeSlug.ORIGINAL,
+        save: bool = True,
+        cache_only: bool = False,
+        image_request: ImageRequest = None,
+    ) -> Promise[Image.Image]:
         _image_request = (
-            ImageRequest(pictured, back = back, crop = crop)
+            ImageRequest(
+                pictured = pictured,
+                pictured_type = pictured_type,
+                picture_name = picture_name,
+                back = back,
+                crop = crop,
+                size_slug = size_slug,
+                save = save,
+                cache_only = cache_only,
+            )
             if image_request is None else
             image_request
         )
 
-        return self._image_loader.get_image(
-            image_request = _image_request,
-        ).then(
-            lambda image:
+        return Promise.resolve(
             self._pixmap_executor.submit(
-                self._pixmap_converter.get_pixmap,
+                self._get_pixmap,
                 _image_request,
-                image,
             )
         )
 
-    def get_default_pixmap(self) -> QPixmap:
-        return self._pixmap_converter.get_pixmap(None, self._default_image)
-
-    # return self._image_loader.get_default_image().then(
-    # 	lambda image: self._pixmap_converter.get_pixmap(None, image)
-    # )
+    def get_default_pixmap(self, size_slug: SizeSlug = SizeSlug.ORIGINAL) -> QPixmap:
+        return self._default_images[size_slug]
