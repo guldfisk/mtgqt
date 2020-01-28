@@ -13,7 +13,6 @@ from mtgimg.load import Loader as ImageLoader
 from mtgimg.interface import ImageRequest, pictureable, SizeSlug, Imageable
 
 
-
 class PixmapLoader(object):
 
     def __init__(
@@ -52,9 +51,10 @@ class PixmapLoader(object):
 
     @cached(cache = LRUCache(maxsize = 64))
     def _get_pixmap(self, image_request: ImageRequest):
+        image = self._image_loader.get_image(image_request = image_request).get()
         return QPixmap.fromImage(
             ImageQt.ImageQt(
-                self._image_loader.get_image(image_request = image_request).get()
+                image
             )
         )
 
