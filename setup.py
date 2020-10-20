@@ -32,6 +32,5 @@ setup(
         'pillow',
         'promise',
         'PyQt5',
-        'cachetools',
     ],
 )
