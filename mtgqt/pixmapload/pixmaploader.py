@@ -90,3 +90,6 @@ class PixmapLoader(object):
 
     def get_default_pixmap(self, size_slug: SizeSlug = SizeSlug.ORIGINAL) -> QPixmap:
         return self._default_images[size_slug]
+
+    def stop(self) -> None:
+        self._image_loader.stop()
