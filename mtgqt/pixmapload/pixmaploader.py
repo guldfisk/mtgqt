@@ -2,19 +2,15 @@ import typing as t
 from concurrent.futures import Executor
 from functools import lru_cache
 
-from PIL import ImageQt, Image
-from promise import Promise
-
-from PyQt5.QtGui import QPixmap
-
-from mtgorp.models.persistent.printing import Printing
-
+from mtgimg.interface import Imageable, ImageLoader, ImageRequest, SizeSlug, pictureable
 from mtgimg.load import Loader
-from mtgimg.interface import ImageRequest, pictureable, SizeSlug, Imageable, ImageLoader
+from mtgorp.models.persistent.printing import Printing
+from PIL import Image, ImageQt
+from promise import Promise
+from PyQt5.QtGui import QPixmap
 
 
 class PixmapLoader(object):
-
     def __init__(
         self,
         *,
@@ -25,23 +21,20 @@ class PixmapLoader(object):
     ):
         self._image_loader = (
             Loader(
-                imageable_executor = imageable_executor,
-                printing_executor = printing_executor,
-                image_cache_size = None,
-            ) if image_loader is None else
-            image_loader
+                imageable_executor=imageable_executor,
+                printing_executor=printing_executor,
+                image_cache_size=None,
+            )
+            if image_loader is None
+            else image_loader
         )
 
         self._default_images = {
-            size_slug: self.image_to_pixmap(
-                self._image_loader.get_default_image(size_slug)
-            )
-            for size_slug in
-            SizeSlug
+            size_slug: self.image_to_pixmap(self._image_loader.get_default_image(size_slug)) for size_slug in SizeSlug
         }
 
         if image_cache_size is not None:
-            self._get_pixmap = lru_cache(maxsize = image_cache_size)(self._get_pixmap)
+            self._get_pixmap = lru_cache(maxsize=image_cache_size)(self._get_pixmap)
 
     @property
     def image_loader(self) -> ImageLoader:
@@ -49,16 +42,10 @@ class PixmapLoader(object):
 
     @classmethod
     def image_to_pixmap(cls, image: Image.Image) -> QPixmap:
-        return QPixmap.fromImage(
-            ImageQt.ImageQt(
-                image
-            )
-        )
+        return QPixmap.fromImage(ImageQt.ImageQt(image))
 
     def _get_pixmap(self, image_request: ImageRequest) -> Promise[QPixmap]:
-        return self._image_loader.get_image(image_request = image_request).then(
-            self.image_to_pixmap
-        )
+        return self._image_loader.get_image(image_request=image_request).then(self.image_to_pixmap)
 
     def get_pixmap(
         self,
@@ -75,17 +62,17 @@ class PixmapLoader(object):
     ) -> Promise[QPixmap]:
         return self._get_pixmap(
             ImageRequest(
-                pictured = pictured,
-                pictured_type = pictured_type,
-                picture_name = picture_name,
-                back = back,
-                crop = crop,
-                size_slug = size_slug,
-                save = save,
-                cache_only = cache_only,
+                pictured=pictured,
+                pictured_type=pictured_type,
+                picture_name=picture_name,
+                back=back,
+                crop=crop,
+                size_slug=size_slug,
+                save=save,
+                cache_only=cache_only,
             )
-            if image_request is None else
-            image_request
+            if image_request is None
+            else image_request
         )
 
     def get_default_pixmap(self, size_slug: SizeSlug = SizeSlug.ORIGINAL) -> QPixmap:
